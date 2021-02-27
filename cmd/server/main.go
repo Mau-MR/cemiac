@@ -1,13 +1,25 @@
 package main
 
-import "github.com/Mau-MR/cemiac/send"
+import (
+	"github.com/Mau-MR/cemiac/send"
+	"net/smtp"
+)
 
-func main(){
-	emailClient := send.EmailAccount{
-		Email: "example@gmail.com",
-		Password: "pass",
-		SmtpHost: "mail.gmail.com",
-		SmtpPort: "587",
+func main() {
+
+	auth:=smtp.PlainAuth("", "example@gmail.com", "someapplicationpassword", "smtp.gmail.com")
+	mail :=send.Mail{
+		From: "example@gmail.com",
+		To: "example@gmail.com",
+		Subject: "Fachelito eh",
+		Body: "This is some  amazing information",
+		Server: &send.SmtpServer{
+			Host: "smtp.gmail.com",
+			Port: "465",
+		},
+		Auth : &auth,
 	}
-	conn := emailClient.NewSMTPClient()
+	mail.SendEmail()
+
+
 }
