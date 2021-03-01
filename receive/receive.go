@@ -2,6 +2,7 @@ package receive
 
 import (
 	"crypto/tls"
+	"fmt"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 	"log"
@@ -22,8 +23,13 @@ func (i ImapAccount) ClassifyMessages() error  {
 	if err !=nil{
 		return err
 	}
+	//TODO: change to omit this step of listing the mailboxes
 	done :=i.listMailBoxes(client)
-	i.getMessages(client,&done)
+	seqSet,err := i.getUnprocessedMessages(client,&done)
+	if err !=nil{
+		return err
+	}
+	i.setMessagesAsProcessed(client,seqSet)
 	return nil
 }
 
@@ -64,36 +70,46 @@ func (i ImapAccount) listMailBoxes(c *client.Client) chan error {
 	}
 	return done
 }
-func (i ImapAccount) getMessages(c* client.Client,done *chan error)  {
+func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) (*imap.SeqSet,error){
 	// Select INBOX
-	mbox, err := c.Select("INBOX", false)
+	_, err := c.Select("INBOX", false)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Flags for INBOX:", mbox.Flags)
-
-	// Get the last 4 messages
-	from := uint32(1)
-	to := mbox.Messages
-	if mbox.Messages > 3 {
-		// We're using unsigned integers here, only subtract if the result is > 0
-		from = mbox.Messages - 3
-	}
-	seqset := new(imap.SeqSet)
-	seqset.AddRange(from, to)
-
-	messages := make(chan *imap.Message, 10)
-	go func() {
-		*done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
-	}()
-
-	log.Println("Last 4 messages:")
-	for msg := range messages {
-		log.Println("* " + msg.Envelope.Subject)
-	}
-
-	if err := <-*done; err != nil {
+	//performing the search of messages without the processed flag
+	criteria:= imap.NewSearchCriteria()
+	criteria.WithoutFlags = []string{"processed"}
+	ids,err := c.Search(criteria)
+	if err !=nil{
+		//Means thera are no new messages with these flag
 		log.Fatal(err)
 	}
+	if len(ids)>0{
+		seqset := new(imap.SeqSet)
+		seqset.AddNum(ids...)
+		messages := make(chan *imap.Message, 10)
+		go func() {
+			*done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
+		}()
+
+		log.Println("Unprocessed messages:")
+		for msg := range messages {
+			log.Println("* " + msg.Envelope.Subject)
+		}
+		if err := <-*done; err != nil {
+			return nil,err
+		}
+		return seqset,nil
+	}
 	log.Println("Done!")
+	return nil, fmt.Errorf("No new unprocessed messages ;)")
+}
+func (i ImapAccount) setMessagesAsProcessed(c * client.Client, mRange *imap.SeqSet)  {
+	item := imap.FormatFlagsOp(imap.AddFlags, true)
+	flags := []interface{}{"processed"}
+	err := c.Store(mRange, item, flags, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Messages has been marked as processed")
 }
