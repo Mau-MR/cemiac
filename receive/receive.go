@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-message/mail"
+	"io"
+	"io/ioutil"
 	"log"
 )
 
@@ -15,21 +18,30 @@ type ImapAccount struct{
 	Mail string
 	Password string
 }
+type ProcessedMail struct{
+	From string
+	Subject string
+	Body string
+}
 
 func (i ImapAccount) ClassifyMessages() error  {
-	client,err:=i.authenticate()
+	c, err:=i.authenticate()
 	//Closing the sessión
-	defer client.Logout()
 	if err !=nil{
 		return err
 	}
-	//TODO: change to omit this step of listing the mailboxes
-	done :=i.listMailBoxes(client)
-	seqSet,err := i.getUnprocessedMessages(client,&done)
+	defer c.Logout()
+	done := make(chan error)
+	seqSet,messages,err := i.getUnprocessedMessages(c,&done)
 	if err !=nil{
 		return err
 	}
-	i.setMessagesAsProcessed(client,seqSet)
+	processedMailChan :=i.getBody(messages)
+	for ch :=range processedMailChan{
+		log.Println("This is the new message")
+		log.Println(ch)
+	}
+	i.setMessagesAsProcessed(c,seqSet)
 	return nil
 }
 
@@ -52,12 +64,11 @@ func (i ImapAccount) authenticate() (*client.Client,error) {
 	log.Println("Logged in")
 	return c,nil
 }
-func (i ImapAccount) listMailBoxes(c *client.Client) chan error {
+func (i ImapAccount) listMailBoxes(c *client.Client,done *chan error) *chan error {
 	// List mailboxes
 	mailboxes := make(chan *imap.MailboxInfo, 10)
-	done := make(chan error, 1)
 	go func () {
-		done <- c.List("", "*", mailboxes)
+		*done <- c.List("", "*", mailboxes)
 	}()
 
 	log.Println("Mailboxes:")
@@ -65,12 +76,12 @@ func (i ImapAccount) listMailBoxes(c *client.Client) chan error {
 		log.Println("* " + m.Name)
 	}
 
-	if err := <-done; err != nil {
+	if err := <-*done; err != nil {
 		log.Fatal(err)
 	}
 	return done
 }
-func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) (*imap.SeqSet,error){
+func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) (*imap.SeqSet,*chan*imap.Message,error){
 	// Select INBOX
 	_, err := c.Select("INBOX", false)
 	if err != nil {
@@ -88,21 +99,16 @@ func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) 
 		seqset := new(imap.SeqSet)
 		seqset.AddNum(ids...)
 		messages := make(chan *imap.Message, 10)
+		var section imap.BodySectionName
 		go func() {
-			*done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
+			*done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope, section.FetchItem()}, messages)
 		}()
-
-		log.Println("Unprocessed messages:")
-		for msg := range messages {
-			log.Println("* " + msg.Envelope.Subject)
-		}
 		if err := <-*done; err != nil {
-			return nil,err
+			return nil,nil,err
 		}
-		return seqset,nil
+		return seqset,&messages,nil
 	}
-	log.Println("Done!")
-	return nil, fmt.Errorf("No new unprocessed messages ;)")
+	return nil, nil, fmt.Errorf("No new unprocessed messages ;)")
 }
 func (i ImapAccount) setMessagesAsProcessed(c * client.Client, mRange *imap.SeqSet)  {
 	item := imap.FormatFlagsOp(imap.AddFlags, true)
@@ -112,4 +118,76 @@ func (i ImapAccount) setMessagesAsProcessed(c * client.Client, mRange *imap.SeqS
 		log.Fatal(err)
 	}
 	log.Println("Messages has been marked as processed")
+}
+
+func (i ImapAccount) getBody(ch *chan *imap.Message) chan *ProcessedMail {
+
+	outLiteral := make(chan imap.Literal)
+	prs:= func(ch* chan*imap.Message){
+		for c := range *ch{
+			outLiteral<- c.GetBody(&imap.BodySectionName{})
+		}
+		close(outLiteral)
+	}
+	go prs(ch)
+
+	outReaders := make(chan *mail.Reader)
+	pts := func(ch*chan imap.Literal) {
+		for c := range *ch{
+			mr, err := mail.CreateReader(c)
+			if err != nil {
+				//TODO: ADD the done or a retunr
+				log.Fatal(err)
+			}
+			outReaders <- mr
+		}
+		close(outReaders)
+	}
+	go pts(&outLiteral)
+
+
+	processedMails := make(chan *ProcessedMail)
+	pms := func(ch * chan*mail.Reader) {
+		for c := range *ch{
+			//In case of the need of mapping the whole body
+			//For what we want its okay on this way
+			//for {
+			mr := c
+			//Moves trow all the parts of the body
+			p, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				log.Fatal(err)
+			}
+			switch h := p.Header.(type) {
+			case *mail.InlineHeader:
+				// This is the message's text (can be plain-text or HTML)
+				b, _ := ioutil.ReadAll(p.Body)
+				subject ,err:= c.Header.Subject()
+				if err !=nil{
+					log.Fatal("Error getting the header")
+				}
+				from ,err:= c.Header.AddressList("From")
+				if err !=nil{
+					log.Fatal("Error getting the from")
+					continue
+				}
+				processedMails <- &ProcessedMail{
+					//TODO: Consider if its necessary to loop over the from not to get an error
+					From: from[0].Address,
+					Subject: subject,
+					Body: string(b),
+				}
+			case *mail.AttachmentHeader:
+				// This is an attachment
+				filename, _ := h.Filename()
+				log.Println("Got attachment: %v", filename)
+			}
+			}
+		//}
+		close(processedMails)
+	}
+	go pms(&outReaders)
+	return processedMails
 }
