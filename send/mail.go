@@ -25,7 +25,7 @@ func (s *SmtpServer) ServerName() string {
 	return s.Host + ":" + s.Port
 }
 
-func (mail *Mail) BuildMessage() []byte {
+func (mail *Mail) BuildMessage() ([]byte,error) {
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	message :=""
 	message += fmt.Sprintf("From: %s\r\n", mail.From)
@@ -37,15 +37,17 @@ func (mail *Mail) BuildMessage() []byte {
 		Body: mail.Body,
 	})
 	if err!=nil{
-		log.Fatal("Some problem parsing the file")
+		return nil,err
 	}
-	return []byte(message+mime+handler.String())
+	return []byte(message+mime+handler.String()),nil
 }
 
-func (mail Mail) SendEmail()  {
-	messageBody := mail.BuildMessage()
+func (mail Mail) SendEmail() error {
+	messageBody ,err:= mail.BuildMessage()
+	if err !=nil{
+		return err
+	}
 	//The auth of the account that is going to be used for sending the emails
-
 	// TLS config
 	tlsconfig := &tls.Config{
 		InsecureSkipVerify: true,
@@ -54,42 +56,43 @@ func (mail Mail) SendEmail()  {
 
 	conn, err := tls.Dial("tcp",mail.Server.ServerName(), tlsconfig)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	client, err := smtp.NewClient(conn, mail.Server.Host)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	// step 1: Use Auth
 	if err = client.Auth(*mail.Auth); err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	// step 2: add all from and to
 	if err = client.Mail(mail.From); err != nil {
-		log.Panic(err)
+		return err
 	}
 	if err = client.Rcpt(mail.To); err != nil {
-		log.Panic(err)
+		return err
 	}
 	// Data
 	w, err := client.Data()
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 	_, err = w.Write(messageBody)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	err = w.Close()
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	client.Quit()
 
 	log.Println("Mail sent successfully")
+	return nil
 }

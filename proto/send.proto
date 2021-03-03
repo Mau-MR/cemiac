@@ -1,0 +1,50 @@
+syntax = "proto3";
+package pb;
+//third party libraries
+option go_package = "github.com/Mau-MR/cemiac/pb";
+
+//in case that is needed to specify the date
+message Date {
+  //examples : Siguente lunes, Lunes 25 feb etc
+  string day =1;
+  string hour = 2;
+  string toHour = 3;
+  string fromHour = 4;
+}
+//The contact of whom the message is going to be sent
+message Contact {
+  //Just the name of the contact
+  string name = 1;
+  //if the contact has a degree title
+  string degreeTitle =2;
+}
+//The person of CEMIAC
+message Ambassador {
+  string name = 1;
+  string phone = 2;
+}
+//The data that is going to be parsed to the template
+message Data {
+  Contact contact = 1;
+  Date date =2;
+  Ambassador ambassador =3;
+}
+message SendReq{
+  string mail=1;
+  //Could be school principal, student
+  string typeOfContact = 2;
+  //Could be first contact student, first contact school principal, informative session,  etc
+  string typeOfTemplate= 3;
+  //The data that is going to be the information parsed to the template parsed to the template
+  Data data =4;
+}
+message SendResp {
+  //Returns the id of the sended mail to be processed
+  string id =1;
+}
+
+service SendService {
+  rpc SendMail(SendReq) returns (SendResp);
+  rpc SendMails(stream SendReq) returns (stream SendResp);
+}
+

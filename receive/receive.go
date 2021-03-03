@@ -36,12 +36,17 @@ func (i ImapAccount) ClassifyMessages() error  {
 	if err !=nil{
 		return err
 	}
-	processedMailChan :=i.getBody(messages)
+	processedMailChan,err :=i.getBody(messages)
+	if err !=nil{
+		return err
+	}
 	for ch :=range processedMailChan{
 		log.Println("This is the new message")
 		log.Println(ch)
 	}
-	i.setMessagesAsProcessed(c,seqSet)
+	if err :=i.setMessagesAsProcessed(c,seqSet); err !=nil{
+		return err
+	}
 	return nil
 }
 
@@ -85,7 +90,7 @@ func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) 
 	// Select INBOX
 	_, err := c.Select("INBOX", false)
 	if err != nil {
-		log.Fatal(err)
+		return nil,nil,err
 	}
 	//performing the search of messages without the processed flag
 	criteria:= imap.NewSearchCriteria()
@@ -93,7 +98,7 @@ func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) 
 	ids,err := c.Search(criteria)
 	if err !=nil{
 		//Means thera are no new messages with these flag
-		log.Fatal(err)
+		return nil,nil,err
 	}
 	if len(ids)>0{
 		seqset := new(imap.SeqSet)
@@ -110,17 +115,18 @@ func (i ImapAccount) getUnprocessedMessages(c *client.Client, done *chan error) 
 	}
 	return nil, nil, fmt.Errorf("No new unprocessed messages ;)")
 }
-func (i ImapAccount) setMessagesAsProcessed(c * client.Client, mRange *imap.SeqSet)  {
+func (i ImapAccount) setMessagesAsProcessed(c * client.Client, mRange *imap.SeqSet)error  {
 	item := imap.FormatFlagsOp(imap.AddFlags, true)
 	flags := []interface{}{"processed"}
 	err := c.Store(mRange, item, flags, nil)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	log.Println("Messages has been marked as processed")
+	return nil
 }
 
-func (i ImapAccount) getBody(ch *chan *imap.Message) chan *ProcessedMail {
+func (i ImapAccount) getBody(ch *chan *imap.Message) (chan *ProcessedMail,error) {
 
 	outLiteral := make(chan imap.Literal)
 	prs:= func(ch* chan*imap.Message){
@@ -166,7 +172,7 @@ func (i ImapAccount) getBody(ch *chan *imap.Message) chan *ProcessedMail {
 				b, _ := ioutil.ReadAll(p.Body)
 				subject ,err:= c.Header.Subject()
 				if err !=nil{
-					log.Fatal("Error getting the header")
+					log.Fatal("Unable to retrieve subject of message")
 				}
 				from ,err:= c.Header.AddressList("From")
 				if err !=nil{
@@ -189,5 +195,5 @@ func (i ImapAccount) getBody(ch *chan *imap.Message) chan *ProcessedMail {
 		close(processedMails)
 	}
 	go pms(&outReaders)
-	return processedMails
+	return processedMails,nil
 }
