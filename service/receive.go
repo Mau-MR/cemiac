@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"github.com/Mau-MR/cemiac/languageProcessing"
 	"github.com/Mau-MR/cemiac/pb"
-	"github.com/Mau-MR/cemiac/receive"
 )
 
 type ReceiveServer struct{
@@ -18,12 +18,16 @@ func NewReceiveServer(user string, password string) *ReceiveServer  {
 	}
 }
 func(s*ReceiveServer)ReceiveMessages(c context.Context, req *pb.ReceiveMessageReq) (*pb.ReceiveMessageRes, error){
-	imap :=receive.ImapAccount{
-		Mail: s.Mail,
-		Password: s.Password,
+	err := languageProcessing.AnaliseEntitySentiment("Muchas gracias, pero por el momento no estamos muy intersados en el servicio, que tengan excelente dia!")
+	if err !=nil{
+		return nil, err
 	}
-	if err := imap.ClassifyMessages(); err !=nil{
-		return nil,err
-	}
+	//imap :=receive.ImapAccount{
+	//	Mail: s.Mail,
+	//	Password: s.Password,
+	//}
+	//if err := imap.ClassifyMessages(); err !=nil{
+		//return nil,err
+	//}
 	return &pb.ReceiveMessageRes{},nil
 }
