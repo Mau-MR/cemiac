@@ -31,7 +31,7 @@ func (mail *Mail) BuildMessage() ([]byte,error) {
 	message += fmt.Sprintf("From: %s\r\n", mail.From)
 	message += fmt.Sprintf("To: %s\r\n", mail.To)
 	message += fmt.Sprintf("Subject: %s\r\n", mail.Subject)
-	handler,err := NewTemplateHandler("test.html", &Message{
+	handler,err := NewTemplateHandler("rtest.html", &Message{
 		Name: "Francisco",
 		URL: "http://cemiacac.com",
 		Body: mail.Body,

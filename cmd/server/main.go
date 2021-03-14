@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	password:= "someapppassword"
+	password:= "some pass"
 	sender := "example@gmail.com"
 	smtpServer := &send.SmtpServer{
 		Host: "smtp.gmail.com",
