@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	password:= "some pass"
+	password := "some pass"
 	sender := "example@gmail.com"
 	smtpServer := &send.SmtpServer{
 		Host: "smtp.gmail.com",
@@ -25,17 +25,15 @@ func main() {
 	flag.Parse()
 	log.Printf("start server on port %d", *port)
 
-
 	grpcServer := grpc.NewServer()
-	sendServer := service.NewSendServer(sender,password,smtpServer)
-	receiveServer := service.NewReceiveServer(sender,password)
+	sendServer := service.NewSendServer(sender, password, smtpServer)
+	receiveServer := service.NewReceiveServer(sender, password)
 
-	pb.RegisterSendServiceServer(grpcServer,sendServer)
-	pb.RegisterReceiveServiceServer(grpcServer,receiveServer)
+	pb.RegisterSendServiceServer(grpcServer, sendServer)
+	pb.RegisterReceiveServiceServer(grpcServer, receiveServer)
 
 	//For testing
 	reflection.Register(grpcServer)
-
 
 	address := fmt.Sprintf("0.0.0.0:%d", *port)
 	listener, err := net.Listen("tcp", address)

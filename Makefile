@@ -9,5 +9,7 @@ gen:
     --proto_path=proto proto/*.proto -I.
 clean:
 	rm pb/*.go
+build:
+	go build ./cmd/server/main.go
 
 .PHONY: gen clean server test client
