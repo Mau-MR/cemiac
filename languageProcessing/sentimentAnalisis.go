@@ -3,7 +3,6 @@ package languageProcessing
 import (
 	"context"
 	"fmt"
-	"google.golang.org/api/option"
 	"log"
 
 	language "cloud.google.com/go/language/apiv1beta2"
@@ -12,7 +11,7 @@ import (
 
 func AnaliseEntitySentiment( text string) error {
 	ctx := context.Background()
-	c, err := language.NewClient(ctx,option.WithCredentialsFile("/Users/mauriciomeridanieto/Downloads/cemiac.json"))
+	c, err := language.NewClient(ctx)
 	if err != nil {
 		log.Fatal(err)
 		return fmt.Errorf("Unable to conect to the natural language Processing API")

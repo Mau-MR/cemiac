@@ -1,4 +1,4 @@
-package send
+package mail
 
 import (
 	"bytes"
@@ -16,9 +16,9 @@ type Message struct {
 	Body string
 }
 
-//Receive the string name of the html file inside templates and the message To parse
+//Receive the string name of the html file inside resources and the message To parse
 func NewTemplateHandler(filename string, message *Message) (*bytes.Buffer,error) {
-	templ := template.Must((template.ParseFiles(filepath.Join("templates", filename))))
+	templ := template.Must((template.ParseFiles(filepath.Join("resources", filename))))
 	buf := new(bytes.Buffer)
 	//join the html file with the message To be sended
 	if err:= templ.Execute(buf,message); err!=nil{
