@@ -2,30 +2,41 @@ package main
 
 import (
 	"context"
+	"github.com/Mau-MR/cemiac/firestore"
 	"github.com/Mau-MR/cemiac/handlers"
+	"github.com/Mau-MR/cemiac/utils"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 )
-func HelloHandler(rw http.ResponseWriter, r *http.Request){
-	rw.Write([]byte("Hello"))
-}
-func main() {
-	l := log.New(os.Stdout, "cemiac-api", log.LstdFlags)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/hello",HelloHandler)
 
-	wrappedMux := handlers.NewAuthMiddleware(mux,l)
+func main() {
+	l := log.New(os.Stdout, "cemiac-api ", log.LstdFlags)
+	dbClient := firestore.CreateClient()
+	validation := utils.NewValidation()
+
+	users := handlers.NewUsers(l,validation,dbClient)
+
+
+	mux := mux.NewRouter()
+	//Post methods
+	postRouter := mux.Methods(http.MethodPost).Subrouter()
+	postRouter.HandleFunc("/login",users.Login)
+
 	server := http.Server{
 		Addr:         "localhost:8080",
-		Handler:      wrappedMux,
+		Handler:      mux,
 		ErrorLog:     l,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  100 * time.Second,
 	}
+
+
+
 	go func() {
 		l.Println("Starting server on port 8080")
 		if err := server.ListenAndServe(); err !=nil{
@@ -35,6 +46,7 @@ func main() {
 
 	}()
 	// trap sigterm or interupt and gracefully shutdown the server
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, os.Kill)
