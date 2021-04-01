@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/Mau-MR/cemiac/firestore"
 	"github.com/Mau-MR/cemiac/handlers"
+	"github.com/Mau-MR/cemiac/jwt"
 	"github.com/Mau-MR/cemiac/utils"
 	"github.com/gorilla/mux"
 	"log"
@@ -17,8 +18,9 @@ func main() {
 	l := log.New(os.Stdout, "cemiac-api ", log.LstdFlags)
 	dbClient := firestore.CreateClient()
 	validation := utils.NewValidation()
+	jwtManager := jwt.NewJWTManager("secretsouce",20*time.Minute)
 
-	users := handlers.NewUsers(l,validation,dbClient)
+	users := handlers.NewUsers(l,validation,dbClient,jwtManager)
 
 
 	mux := mux.NewRouter()
