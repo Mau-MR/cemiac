@@ -23,6 +23,7 @@ func FromJSON(i interface{}, r io.Reader) error {
 func ParseRequest(i interface{}, r io.Reader, rw http.ResponseWriter) error{
 	err := FromJSON(i,r)
 	if err !=nil {
+		rw.WriteHeader(http.StatusBadRequest)
 		ToJSON(GenericError{
 			Message: fmt.Sprintf("Bad  format for type: %T", i),
 		},rw)
